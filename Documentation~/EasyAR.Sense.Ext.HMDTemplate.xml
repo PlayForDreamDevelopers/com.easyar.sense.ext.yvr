@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>EasyAR.Sense.Ext.HMDTemplate</name>
+    </assembly>
+    <members>
+        <member name="T:easyar.HMDTemplateFrameSource">
+            <summary>
+            <para xml:lang="en">A custom frame source which connects my device output to EasyAR input in the scene, providing my device support using custom camera feature of EasyAR Sense.</para>
+            <para xml:lang="en">This frame source is one type of motion tracking device, and will output motion data in a <see cref="T:easyar.ARSession"/>.</para>
+            <para xml:lang="zh">在场景中将我的设备的输出连接到EasyAR输入的自定义frame source。通过EasyAR Sense的自定义相机功能提供我的设备的支持。</para>
+            <para xml:lang="zh">这个frame source是一种运动跟踪设备，在<see cref="T:easyar.ARSession"/>中会输出运动数据。</para>
+            </summary>
+        </member>
+    </members>
+</doc>

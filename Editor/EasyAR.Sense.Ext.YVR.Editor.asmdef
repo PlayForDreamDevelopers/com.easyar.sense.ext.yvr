@@ -1,0 +1,31 @@
+{
+    "name": "EasyAR.Sense.Ext.YVR.Editor",
+    "rootNamespace": "",
+    "references": [
+        "EasyAR.Sense",
+        "EasyAR.Sense.Editor",
+        "EasyAR.Sense.Ext.YVR"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.easyar.sense",
+            "expression": "4000.0.0",
+            "define": "EASYAR_ENABLE_SENSE"
+        },
+        {
+            "name": "com.yvr.core",
+            "expression": "1.25.1",
+            "define": "EASYAR_ENABLE_YVR"
+        }
+    ],
+    "noEngineReferences": false
+}

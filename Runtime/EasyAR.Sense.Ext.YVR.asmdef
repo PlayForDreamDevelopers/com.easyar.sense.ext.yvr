@@ -1,0 +1,40 @@
+{
+    "name": "EasyAR.Sense.Ext.YVR",
+    "rootNamespace": "",
+    "references": [
+        "EasyAR.Sense",
+        "YVR.Core.Runtime",
+        "YVR.Enterprise.Runtime",
+        "YVR.Utilities.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.easyar.sense",
+            "expression": "4000.0.0",
+            "define": "EASYAR_ENABLE_SENSE"
+        },
+        {
+            "name": "com.easyar.sense",
+            "expression": "",
+            "define": "EASYAR_HAVE_SENSE"
+        },
+        {
+            "name": "com.yvr.core",
+            "expression": "1.25.1",
+            "define": "EASYAR_ENABLE_YVR"
+        },
+        {
+            "name": "com.yvr.core",
+            "expression": "",
+            "define": "EASYAR_HAVE_YVR"
+        }
+    ],
+    "noEngineReferences": false
+}

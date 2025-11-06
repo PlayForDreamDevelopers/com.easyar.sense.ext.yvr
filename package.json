@@ -1,0 +1,35 @@
+{
+  "name": "com.easyar.sense.ext.yvr",
+  "displayName": "EasyAR Sense Unity Plugin YVR Extension",
+  "version": "4000.0.0+4844.876da3afb",
+  "unity": "2021.3",
+  "description": "EasyAR Sense Unity Plugin YVR Extension. \r\nExtends EasyAR to co-work with YVR Unity SDK. \r\nPlease read the documents on [EasyAR website](https://www.easyar.com) for how to use.",
+  "keywords": [
+    "easyar",
+    "augmented",
+    "reality",
+    "sdk",
+    "ar",
+    "cloud",
+    "spatial",
+    "map",
+    "xr"
+  ],
+  "author": {
+    "name": "VisionStar Information Technology (Shanghai) Co., Ltd.",
+    "email": "support@easyar.com",
+    "url": "https://www.easyar.com"
+  },
+  "dependencies": {
+    "com.easyar.sense": "4000.0.0",
+    "com.yvr.core": "1.25.1",
+    "com.yvr.enterprise":"0.0.10"
+  },
+  "samples": [
+    {
+      "displayName": "Combination_BasedOn_YVR",
+      "description": "",
+      "path": "Samples~/Combination_BasedOn_YVR"
+    }
+  ]
+}
