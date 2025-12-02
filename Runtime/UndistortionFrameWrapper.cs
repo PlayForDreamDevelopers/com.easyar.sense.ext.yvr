@@ -1,18 +1,11 @@
 using System;
-<<<<<<< HEAD
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-=======
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Jobs;
->>>>>>> d38df90 (temp)
 using YVR.Enterprise.Camera;
 
 public class UndistortionFrameWrapper
 {
-<<<<<<< HEAD
     public UndistortionMap undistortionMap = null;
 
     private readonly int m_SourceWidth;
@@ -175,7 +168,6 @@ public class UndistortionFrameWrapper
         }
     }
 
-
     private static float SampleRgb(byte[] data, int width, int height, int x, int y, int channel)
     {
         if (x < 0 || x >= width || y < 0 || y >= height)
@@ -206,36 +198,3 @@ public class UndistortionFrameWrapper
         return (int)Math.Round(value);
     }
 }
-=======
-    public NV21DataConverter NV21DataConverter = null;
-    public UndistortionMap undistortionMap = null;
-
-    public UndistortionFrameWrapper(VSTCameraResolutionType resolutionType, VSTCameraSourceType sourceType, int width, int height)
-    {
-        // As the image is rotated 90 degrees, the width and height of image are swapped
-        NV21DataConverter = new NV21DataConverter(width, height);
-        undistortionMap = new UndistortionMap(sourceType,
-            resolutionType);
-    }
-
-    public byte[] ConvertRGBData(byte[]  data)
-    {
-        if (data == null) return null;
-
-        using NativeArray<byte> nv21NativeLeft =  new NativeArray<byte>(data, Allocator.Persistent);
-        JobHandle distortionJobHandle = NV21DataConverter.GetNormalizeRGBDataJobHandle(nv21NativeLeft, undistortionMap);
-        distortionJobHandle.Complete();
-        return NV21DataConverter.normalizedRGBDataArray.ToArray();
-    }
-
-    private static NativeArray<byte> IntPtrToNativeArray(IntPtr ptr, int length)
-    {
-        unsafe
-        {
-            NativeArray<byte> arr = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(
-                (void*)ptr, length, Allocator.None);
-            return arr;
-        }
-    }
-}
->>>>>>> d38df90 (temp)
