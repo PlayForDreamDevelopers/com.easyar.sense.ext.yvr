@@ -1,0 +1,26 @@
+default:
+  tags:
+    - package
+
+stages:
+  - sync
+  - pre-build
+  - build
+  - test
+  - pre-deploy
+  - deploy
+
+variables:
+  GIT_CLEAN_FLAGS: "-f -x -e Library/"
+  GIT_SUBMODULE_STRATEGY: recursive
+  UNITY_EXECUTABLE: $UNITY_EXECUTABLE_PATH
+
+include:
+  - component: $CI_SERVER_FQDN/unity/tool-ci/sync-to-github@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/sync-ci-tools@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/prepare-build@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/sync-unity-solution@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/build-docfx-documentation@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/publish-to-npm-registry@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/deploy-docs@$CI_GROUP_VAR_CI_TOOL_BRANCH
+  - component: $CI_SERVER_FQDN/unity/tool-ci/build-github-pages@$CI_GROUP_VAR_CI_TOOL_BRANCH
