@@ -17,20 +17,17 @@
 #else
 
 using System;
-using System.Buffers;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
-using UnityEngine.Serialization;
-using UnityEngine.UI;
 using UnityEngine.XR;
 using YVR.Enterprise.Camera;
 using YVR.Core;
 using YVR.Utilities;
+using UnityEngine.UI;
 
 namespace easyar
 {
@@ -51,10 +48,6 @@ namespace easyar
         private bool m_Started;
         private DeviceFrameSourceCamera m_DeviceFrameSourceCamera;
         private InputDevice m_CameraDevice;
-        private readonly ConcurrentQueue<FrameProcessingRequest> m_PendingCameraFrames = new ConcurrentQueue<FrameProcessingRequest>();
-        private CancellationTokenSource m_FrameProcessingCts;
-        private Task m_FrameProcessingTask;
-        private SemaphoreSlim m_FrameAvailableSignal;
         private VSTCameraExtrinsicData m_CameraExtrinsics;
         protected override bool IsHMD => true;
 
@@ -67,20 +60,7 @@ namespace easyar
         protected override bool CameraFrameStarted => m_Started;
 
         protected override List<FrameSourceCamera> DeviceCameras => new List<FrameSourceCamera> { m_DeviceFrameSourceCamera };
-
-        private UndistortionFrameWrapper m_UndistortionFrameWrapper;
-
-        private static byte[] s_CacheFrameBytes;
-
-        private struct FrameProcessingRequest
-        {
-            public byte[] Nv21Data;
-            public Vector2Int Resolution;
-            public long Timestamp;
-            public Pose Pose;
-            public MotionTrackingStatus TrackingStatus;
-        }
-
+        private NativeArray<byte> m_DstPacked;
         private void Update()
         {
             if (!m_Started) { return; }
@@ -99,8 +79,8 @@ namespace easyar
         {
             base.OnSessionStop();
             m_Started = false;
-            StopFrameProcessingTask();
             StopAllCoroutines();
+            YVRVSTCameraPlugin.UnsubscribeVSTCameraFrameUndistorted();
             m_ARSession = null;
             m_CameraParameters?.Dispose();
             m_CameraParameters = null;
@@ -109,6 +89,7 @@ namespace easyar
             if (m_Opened)
             {
                 YVRVSTCameraPlugin.CloseVSTCamera();
+                m_Opened = false;
             }
         }
 
@@ -124,15 +105,15 @@ namespace easyar
 
             GetResolution(m_ResolutionType,out int imageWidth, out int imageHeight);
             VSTCameraIntrinsicExtrinsicData cameraIntrinsicExtrinsicData = default;
+            YVRVSTCameraPlugin.SetVSTCameraResolution(m_ResolutionType);
             YVRVSTCameraPlugin.OpenVSTCamera();
             YVRVSTCameraPlugin.SetVSTCameraFrequency(m_FrequencyType);
-            YVRVSTCameraPlugin.SetVSTCameraResolution(m_ResolutionType);
-            YVRVSTCameraPlugin.SetVSTCameraFormat(VSTCameraFormatType.VSTCameraFmtNv21);
+            YVRVSTCameraPlugin.SetVSTCameraFormat(VSTCameraFormatType.VSTCameraFmtRGB);
             YVRVSTCameraPlugin.SetVSTCameraOutputSource( VSTCameraSourceType.VSTCameraLeftEye);
             YVRVSTCameraPlugin.GetVSTCameraIntrinsicExtrinsic(VSTCameraSourceType.VSTCameraLeftEye,ref cameraIntrinsicExtrinsicData);
-            m_UndistortionFrameWrapper = new UndistortionFrameWrapper(m_ResolutionType,VSTCameraSourceType.VSTCameraLeftEye,imageWidth,imageHeight);
-            var focalLength = m_UndistortionFrameWrapper.undistortionMap.focalLength.ToArray();
-            var principalPoint = m_UndistortionFrameWrapper.undistortionMap.principalPoint.ToArray();
+            UndistortionMap undistortionMap = new UndistortionMap(VSTCameraSourceType.VSTCameraLeftEye,m_ResolutionType);
+            var focalLength = undistortionMap.focalLength.ToArray();
+            var principalPoint = undistortionMap.principalPoint.ToArray();
             var cameraParamList = new List<float> { focalLength[0],focalLength[1],principalPoint[0],principalPoint[1] };
             YVRLog.Debug($"InitializeCamera: cameraParamList: {focalLength[0]},{focalLength[1]},{principalPoint[0]},{principalPoint[1]}");
 
@@ -145,7 +126,7 @@ namespace easyar
             YVRVSTCameraPlugin.GetEyeCenterToVSTCameraExtrinsic(VSTCameraSourceType.VSTCameraLeftEye,ref m_CameraExtrinsics);
             m_CameraParameters = cameraParameters.Value;
             m_Opened = true;
-            var frameRateRange = new Vector2(8,30);
+            var frameRateRange = new Vector2(30,30);
             var axisSystem = AxisSystemType.Unity;
 
             var offset = m_CameraExtrinsics.translation;
@@ -158,9 +139,7 @@ namespace easyar
 
             m_DeviceFrameSourceCamera = new DeviceFrameSourceCamera(CameraDeviceType.Back, 270,
                 new Vector2Int(imageWidth, imageHeight), frameRateRange, extrinsics, axisSystem);
-            s_CacheFrameBytes = new byte[imageWidth*imageHeight*3];
-            StartFrameProcessingTask();
-            YVRVSTCameraPlugin.SubscribeVSTCameraFrame(AcquireVSTCameraFrame);
+            YVRVSTCameraPlugin.SubscribeVSTCameraFrameUndistorted(AcquireVSTCameraFrame);
             m_Started = true;
         }
 
@@ -189,51 +168,80 @@ namespace easyar
 
         private void AcquireVSTCameraFrame(VSTCameraFrameData frameData)
         {
-            if (!m_Started || m_FrameProcessingCts == null || m_FrameAvailableSignal == null)
+            if (!m_Started || m_DeviceFrameSourceCamera == null || m_CameraParameters == null)
             {
                 return;
             }
 
-            if (frameData.cameraFrameItem.data[0] == IntPtr.Zero)
+            var frameItem = frameData.cameraFrameItem;
+            if (frameItem.data[0] == IntPtr.Zero)
             {
                 return;
             }
 
-            var size = new Vector2Int(frameData.cameraFrameItem.width, frameData.cameraFrameItem.height);
-            try
+            var resolution = new Vector2Int(frameItem.width, frameItem.height);
+            var dataSize = frameItem.dataSize;
+            if (dataSize <= 0)
             {
-                Marshal.Copy(frameData.cameraFrameItem.data[0], s_CacheFrameBytes, 0, s_CacheFrameBytes.Length);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"YVRFrameSource failed to copy VST frame: {ex}");
                 return;
             }
+
+            var bufferOptional = TryAcquireBuffer(dataSize);
+            if (bufferOptional.OnNone) return;
 
             var trackingStatus = frameData.sixDofPose.confidence == 1 ? MotionTrackingStatus.Tracking : MotionTrackingStatus.NotTracking;
             m_CameraDevice.TryGetFeatureValue(CommonUsages.devicePosition, out var position);
             m_CameraDevice.TryGetFeatureValue(CommonUsages.deviceRotation, out var rotation);
             Pose pose = new Pose(position, rotation);
-            var timestamp = frameData.cameraFrameItem.soeTimestamp;
-            var request = new FrameProcessingRequest
-            {
-                Nv21Data = s_CacheFrameBytes,
-                Resolution = size,
-                Timestamp = timestamp,
-                Pose = pose,
-                TrackingStatus = trackingStatus
-            };
+            var timestamp = frameItem.soeTimestamp;
 
-            // Only keep the newest frame to avoid processing backlog.
-            while (m_PendingCameraFrames.TryDequeue(out _)) { }
-            var shouldSignal = m_FrameAvailableSignal.CurrentCount == 0;
-            m_PendingCameraFrames.Enqueue(request);
-            if (shouldSignal)
+            if (!m_DstPacked.IsCreated)
             {
-                m_FrameAvailableSignal.Release();
+                m_DstPacked =  new NativeArray<byte>(frameItem.width*frameItem.height*3, Allocator.Persistent);
+            }
+            CopyToPacked(frameItem.data[0],frameItem.width,frameItem. height, frameItem.stride, m_DstPacked);
+            using (var buffer = bufferOptional.Value)
+            {
+                IntPtr intPtr = IntPtr.Zero;
+                unsafe
+                {
+                    void* ptr = m_DstPacked.GetUnsafeReadOnlyPtr();
+                    intPtr = (IntPtr)ptr;
+                    buffer.tryCopyFrom(intPtr, 0, 0, dataSize);
+                    m_DstPacked.Dispose();
+                }
+                using (var image = Image.create(buffer, PixelFormat.RGB888, frameItem.width, frameItem.height, resolution.x, resolution.y))
+                {
+                    HandleCameraFrameData(m_DeviceFrameSourceCamera, timestamp * 1e-9, image, m_CameraParameters, pose, trackingStatus);
+                }
             }
         }
 
+        private static unsafe void CopyToPacked(
+            IntPtr basePtr,
+            int width, int height,
+            int stridePixels,
+            NativeArray<byte> packedDst)
+        {
+            int rowBytes = width * 3;
+            int packedBytes = rowBytes * height;
+
+            if (!packedDst.IsCreated || packedDst.Length < packedBytes)
+                throw new ArgumentException("packedDst too small");
+
+            int srcStrideBytes = stridePixels * 3;
+
+            byte* srcBase = (byte*)basePtr.ToPointer();
+            byte* dstBase = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(packedDst);
+
+            for (int y = 0; y < height; y++)
+            {
+                byte* srcRow = srcBase + y * srcStrideBytes;
+                byte* dstRow = dstBase + y * rowBytes;
+
+                UnsafeUtility.MemCpy(dstRow, srcRow, rowBytes);
+            }
+        }
         private void InputRenderFrameMotionData()
         {
             long timestamp = YVRGetPredictedTime();
@@ -246,116 +254,6 @@ namespace easyar
         [DllImport("yvrplugin")]
         private static extern long YVRGetPredictedTime();
 
-        private void StartFrameProcessingTask()
-        {
-            StopFrameProcessingTask();
-            m_FrameProcessingCts = new CancellationTokenSource();
-            m_FrameAvailableSignal = new SemaphoreSlim(0);
-            m_FrameProcessingTask = Task.Run(() => FrameProcessingLoop(m_FrameProcessingCts.Token), m_FrameProcessingCts.Token);
-        }
-
-        private void StopFrameProcessingTask()
-        {
-            var cts = m_FrameProcessingCts;
-            if (cts == null)
-            {
-                return;
-            }
-
-            try
-            {
-                cts.Cancel();
-                try
-                {
-                    m_FrameAvailableSignal?.Release();
-                }
-                catch (ObjectDisposedException)
-                {
-                }
-                m_FrameProcessingTask?.Wait();
-            }
-            catch (AggregateException ex)
-            {
-                ex.Handle(e => e is OperationCanceledException);
-            }
-            finally
-            {
-                cts.Dispose();
-                m_FrameProcessingCts = null;
-
-                m_FrameAvailableSignal?.Dispose();
-                m_FrameAvailableSignal = null;
-
-                m_FrameProcessingTask = null;
-            }
-        }
-
-        private void FrameProcessingLoop(CancellationToken token)
-        {
-            try
-            {
-                while (true)
-                {
-                    token.ThrowIfCancellationRequested();
-                    m_FrameAvailableSignal.Wait(token);
-
-                    while (m_PendingCameraFrames.TryDequeue(out var frame))
-                    {
-                        token.ThrowIfCancellationRequested();
-                        try
-                        {
-                            ProcessCameraFrame(frame, token);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            throw;
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogWarning($"YVRFrameSource frame task failed: {ex}");
-                        }
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.LogError("FrameProcessingLoop Error");
-            }
-        }
-
-        private void ProcessCameraFrame(FrameProcessingRequest frame, CancellationToken token)
-        {
-            if (m_UndistortionFrameWrapper == null || m_DeviceFrameSourceCamera == null || m_CameraParameters == null)
-            {
-                return;
-            }
-
-            token.ThrowIfCancellationRequested();
-
-            var bufferSize = frame.Resolution.x * frame.Resolution.y * 3;
-            var bufferOptional = TryAcquireBuffer(bufferSize);
-            if (bufferOptional.OnNone)
-            {
-                return;
-            }
-
-            using (var buffer = bufferOptional.Value)
-            {
-                var rgbBuffer = m_UndistortionFrameWrapper.ConvertRGBData(frame.Nv21Data, token);
-                if (rgbBuffer == null)
-                {
-                    return;
-                }
-
-                token.ThrowIfCancellationRequested();
-
-                buffer.copyFromByteArray(rgbBuffer, 0, 0, bufferSize);
-                using (var image = Image.create(buffer, PixelFormat.RGB888, frame.Resolution.x, frame.Resolution.y, frame.Resolution.x, frame.Resolution.y))
-                {
-                    HandleCameraFrameData(m_DeviceFrameSourceCamera, frame.Timestamp * 1e-9, image, m_CameraParameters, frame.Pose, frame.TrackingStatus);
-                }
-            }
-        }
     }
 }
 #endif
