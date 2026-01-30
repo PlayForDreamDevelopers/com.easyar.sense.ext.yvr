@@ -129,14 +129,13 @@ namespace easyar
             var frameRateRange = new Vector2(30,30);
             var axisSystem = AxisSystemType.Unity;
 
-            var offset = m_CameraExtrinsics.translation;
-            Quaternion quaternion = new Quaternion( -0.00081f, 0.07177f, -0.70294f, -0.70762f);
+            Quaternion quaternion = m_CameraExtrinsics.rotation * new Quaternion(1,0,0,0);
             var extrinsics = new DeviceFrameSourceCamera.CameraExtrinsics(
-                new Pose(offset, quaternion),
+                new Pose(m_CameraExtrinsics.translation, quaternion),
                 true
             );
-            YVRLog.Debug($"cameraI extrinsics position:{offset.ToString()}, rotation:{quaternion.ToString()}");
 
+            YVRLog.Debug($"cameraI extrinsics position:{m_CameraExtrinsics.translation.ToString()}, rotation:{quaternion.ToString()}");
             m_DeviceFrameSourceCamera = new DeviceFrameSourceCamera(CameraDeviceType.Back, 270,
                 new Vector2Int(imageWidth, imageHeight), frameRateRange, extrinsics, axisSystem);
             YVRVSTCameraPlugin.SubscribeVSTCameraFrameUndistorted(AcquireVSTCameraFrame);
