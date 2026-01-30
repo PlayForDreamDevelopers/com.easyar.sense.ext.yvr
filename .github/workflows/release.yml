@@ -1,0 +1,21 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - '*' # 触发所有 tag 推送。如果您只希望匹配 v 开头的 tag (如 v1.0.0)，可以改为 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须赋予写权限才能创建 release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true # 根据提交历史自动生成 Release Notes
