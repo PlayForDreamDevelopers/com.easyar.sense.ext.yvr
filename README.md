@@ -1,6 +1,9 @@
+[![zh](https://img.shields.io/badge/lang-zh-red.svg)](README.zh.md)
+
+<br>
 <div align="center" dir="auto">
  <a href="https://github.com/PlayForDreamDevelopers/com.easyar.sense.ext.yvr">
- <img src="https://camo.githubusercontent.com/9af9ea82a41854273006ce6b27312cd27f4eb2c1609cf3b3a085f716016eaf4d/68747470733a2f2f7777772e7066646d2e636e2f656e2f7374617469632f696d2f6c6f676f2e326231623037652e706e67" alt="Logo" width="20%" style="max-width: 100%;">
+ <img src="https://www.pfdm.cn/en/static/img/logo.2b1b07e.png" alt="Logo" width="20%">
  </a>
  <div class="markdown-heading" dir="auto"><h1> com.easyar.sense.ext.yvr </h1></div>
  <p align="center" dir="auto">
@@ -8,7 +11,7 @@
  <br>
  <a href="https://www.easyar.com" rel="nofollow"><strong>View Documentation»</strong></a>
  <br>
- <a href="#samples">View Samples</a>
+ <a href="https://github.com/PlayForDreamDevelopers/EasyAR-Sample">View Samples</a>
  ·
  <a href="https://github.com/PlayForDreamDevelopers/com.easyar.sense.ext.yvr/issues">Report Bug</a>
  ·
@@ -31,7 +34,7 @@
 <div class="markdown-heading" dir="auto"><h2>Requirements</h2></div>
 
 <ul>
-<li>com.easyar.sense (4000.0.0)</li>
-<li>com.yvr.core (1.25.1)</li>
-<li>com.yvr.enterprise (0.0.10)</li>
+<li>com.easyar.sense (4000.0.0 or later)</li>
+<li>com.yvr.core (1.25.1 or later)</li>
+<li>com.yvr.enterprise (0.0.10 or later)</li>
 </ul>
